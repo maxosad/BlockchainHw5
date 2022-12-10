@@ -20,13 +20,15 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
     enum Choice {NEUTRAL, POSITIVE, NEGATIVE}
 
     struct Proposal {
-        int votes;
+        uint votesFor;
+
+        uint votesAgainst;
 
         uint endTimestamp;
 
         uint snapshotId;
 
-        mapping(address => Choice) voted;
+        
     }
 
     
@@ -41,7 +43,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
     
     Proposal[MAX_PROP] private _proposals;
     bool[MAX_PROP] private _activness;
-
+    mapping(uint => mapping(address => Choice) ) voted;
 
 
     mapping (uint => uint) idFromHash;
@@ -62,28 +64,9 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
         return totalSupplyAt(snapshot) / 2;
     }
 
-
-
-    // function tryFinalize() public {
-    //     for (uint i = 0; i < MAX_PROP; i++) {
-    //         if (_activness) {
-    //             if (_proposals[i].endTimestamp < block.timestamp) {
-    //                 _activness[i] = false;
-    //                 emit Discarded(hashFromId[i]);
-    //             } else if(_proposals[i].votesFor > _getTargetValAT(_proposals[i].snapshotId)){
-    //                 _activness[i] = false;
-    //                 emit Accepted(hashFromId[i]);
-    //             } else if(_proposals[i].votesAgainst > _getTargetValAT(_proposals[i].snapshotId)){
-    //                 _activness[i] = false;
-    //                 emit Rejected(hashFromId[i]);
-    //             }
-    //         }
-    //     }
-    // }
-
     function tryDiscard() public {
         for (uint i = 0; i < MAX_PROP; i++) {
-            if (_activness && _proposals[i].endTimestamp < block.timestamp) {
+            if (_activness[i] && _proposals[i].endTimestamp < block.timestamp) {
                 _activness[i] = false;
                 emit Discarded(hashFromId[i]);
             }
@@ -97,7 +80,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
 
         for (uint i = 0; i < MAX_PROP; i++) {
             if (!_activness[i]) {
-                _proposals[i] = Proposal(0, block.timestamp + TTL, _snapshot());
+                _proposals[i] = Proposal(0, 0, block.timestamp + TTL, _snapshot());
                 idFromHash[propHash] = i; 
                 hashFromId[i] = propHash;
                 break;
@@ -117,7 +100,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
         tryDiscard();
         uint id = idFromHash[propHash];
         address sender = msg.sender;
-        Choice choice = _proposals[id].voted(sender);
+        Choice choice = voted[propHash][sender];
         uint snapshotid = _proposals[id].snapshotId;
 
         if(!_activness[id]) {
@@ -126,13 +109,17 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
         
         //first change flag then change state
         if (choice == Choice.NEUTRAL) {
-            _proposals[id].voted(sender) = Choice.POSITIVE;
-            _proposals[id].voteFor += balanceOfAt(sender, snapshotid);
+            voted[propHash][sender] = Choice.POSITIVE;
+            _proposals[id].votesFor += balanceOfAt(sender, snapshotid);
         } else if (choice == Choice.NEGATIVE) {
-            _proposals[id].voted(sender) = Choice.POSITIVE;
-            _proposals[id].voteFor += 2 * balanceOfAt(sender,snapshotid);
+            voted[propHash][sender] = Choice.POSITIVE;
+            uint balance = balanceOfAt(sender, snapshotid);
+            _proposals[id].votesFor += balance;
+            _proposals[id].votesAgainst -= balance;
         }
 
+        
+        
         if(_proposals[id].votesFor > _getTargetValAT(snapshotid)){
             _activness[id] = false;
             emit Accepted(propHash);
@@ -143,7 +130,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
         tryDiscard();
         uint id = idFromHash[propHash];
         address sender = msg.sender;
-        Choice choice = _proposals[id].voted(sender) ;
+        Choice choice = voted[propHash][sender];
         uint snapshotid = _proposals[id].snapshotId;
 
         if(!_activness[id]) {
@@ -152,15 +139,19 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Snapshot.sol";
         
         //first change flag then change state
         if (choice == Choice.NEUTRAL) {
-            _proposals[id].voted(sender) = Choice.NEGATIVE;
-            _proposals[id].voteFor -= balanceOfAt(sender,snapshotid);
-
+            voted[propHash][sender] = Choice.NEGATIVE;
+            _proposals[id].votesAgainst += balanceOfAt(sender, snapshotid);
         } else if (choice == Choice.POSITIVE) {
-            _proposals[id].voted(sender) = Choice.POSITIVE;
-            _proposals[id].voteFor -= 2 * balanceOfAt(sender,snapshotid);
+            voted[propHash][sender] = Choice.NEGATIVE;
+            uint balance = balanceOfAt(sender, snapshotid);
+            _proposals[id].votesAgainst += balance;
+            _proposals[id].votesFor -= balance;
         }
 
-        if(_proposals[id].votesFor > _getTargetValAT(snapshotid)){
+        
+        
+        
+        if(_proposals[id].votesAgainst > _getTargetValAT(snapshotid)){
             _activness[id] = false;
             emit Rejected(propHash);
         }
