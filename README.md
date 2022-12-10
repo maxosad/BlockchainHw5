@@ -6,7 +6,7 @@ npm install --save-dev hardhat
 npx hardhat
 ```
 ```
-Затем исполните команду, которую он попросит
+Then run the command that prompts
 npx hardhat test
 
 
