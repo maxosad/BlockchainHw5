@@ -79,10 +79,10 @@ it("Create 4 Proposals", async function () {
   let hash1 = keccak256("hello1")
   let hash2 = keccak256("hello2")
   let hash3 = keccak256("hello3")
-  console.log(hash)
-  console.log(hash1)
-  console.log(hash2)
-  console.log(hash3)
+//   console.log(hash)
+//   console.log(hash1)
+//   console.log(hash2)
+//   console.log(hash3)
   
   // console.log(hash)
 
