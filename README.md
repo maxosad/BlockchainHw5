@@ -1,3 +1,12 @@
+
+
+put your key in .env
+.env example 
+
+```
+ALCHEMY_API_KEY=123456789qwertyuiasdfghjkzxcvbnw
+```
+
 ```
 npm install keccak256
 npm install dotenv
